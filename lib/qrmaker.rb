@@ -10,6 +10,7 @@ require 'json'
 require 'zlib'
 require 'date'
 require 'nokogiri'
+require 'rest-client'
 
 include Prawn::Measurements
 
@@ -182,9 +183,8 @@ end
 
 
 def get_auchan_details url
-  uri = URI(url)
-  uri.query = nil
-  html = Nokogiri::HTML.parse(Net::HTTP.get(uri))
+  raw = RestClient.get(url)
+  html = Nokogiri::HTML.parse(raw)
 
   label = html.css(".product-resume .label")[0].text rescue "?"
   brand = html.css(".product-resume .brand")[0].text rescue "?"
@@ -213,3 +213,5 @@ end
 
 p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/kresto-sezam-luskany/p-92900406'
 p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/mlekovita-mleko-polskie-3-2-swieze/p-94300211?fromPromo=true'
+
+require 'pry'; binding.pry
