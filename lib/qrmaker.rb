@@ -195,23 +195,53 @@ def get_auchan_details url
 
   extra = "#{brand} | #{price} | #{weight_and_price_per_weight} | #{date}"
 
-  # require 'pry'
-  # binding.pry
+  # require 'pry'; binding.pry
 
   return {
     name: label,
     url: url,
     extra: extra,
   }
-rescue
-  return {
-    name: '?',
-    url: url,
-    extra: url,
-  }
 end
 
-p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/kresto-sezam-luskany/p-92900406'
-p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/mlekovita-mleko-polskie-3-2-swieze/p-94300211?fromPromo=true'
+def get_details url
+  return get_auchan_details url if url.include? 'auchandirect.pl'
+  return { name: '?', url: url, extra: url }
+rescue
+  return { name: '?', url: url, extra: url }
+end
 
-require 'pry'; binding.pry
+def cli
+  require 'highline'
+  cli = HighLine.new
+  HighLine.colorize_strings
+
+  labels = []
+
+  loop do
+    answer = cli.ask "Enter product URL or: \nc - create url\np - print \ng - generate PDF \nd - delete last item".green
+    label = nil
+
+    case answer
+    when /^https?:/
+      label = get_details answer
+    when 'c'
+      cli.say "Sorry, unimplemented...".red
+    when 'p'
+      cli.say "Sorry, unimplemented...".red
+    when 'g'
+      cli.say "Sorry, unimplemented...".red
+    when 'd'
+      cli.say "Sorry, unimplemented...".red
+    else
+      cli.say "Sorry, not sure what you meant there...".red
+    end
+
+    if label
+      cli.say "Added:\n Name:\t#{label[:name]}\n Extra:\t#{label[:extra]})\n URL:\t#{label[:url]}"
+    end
+    cli.say "\n"
+  end
+end
+
+cli

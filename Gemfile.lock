@@ -18,6 +18,7 @@ GEM
       addressable
     domain_name (0.5.20190701)
       unf (>= 0.0.5, < 1.0.0)
+    highline (2.0.3)
     http-accept (1.7.0)
     http-cookie (1.0.3)
       domain_name (~> 0.5)
@@ -61,6 +62,7 @@ PLATFORMS
 
 DEPENDENCIES
   color
+  highline
   json
   nokogiri
   prawn
