@@ -8,6 +8,7 @@ require 'color'
 require 'rmagick'
 require 'json'
 require 'zlib'
+require 'date'
 
 include Prawn::Measurements
 
@@ -51,46 +52,53 @@ end
 
 DYMO_LABEL_SIZE = [89, 36]
 ZEBRA_LABEL_SIZE = [100, 60]
+A8_SAFE_SIZE = [47, 67]
+
+def draw_page item
+  stroke_bounds
+
+  margin = mm2pt(2)
+
+  bounding_box([bounds.left + margin, bounds.top - margin],
+    height: bounds.height - 2*margin, width: bounds.width - 2*margin) do
+    bounding_box(bounds.top_left, width: bounds.width, height: 28) do
+      text_box item[:name],
+        size: 15, align: :center, valign: :center, width: bounds.width,
+        inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: false
+    end
+
+    bounding_box([bounds.left, bounds.top - 30], width: bounds.width) do
+      print_qr_code item[:url], stroke: false,
+        foreground_color: '000000',
+        extent: bounds.width, margin: 0, pos: bounds.top_left
+    end
+
+    bounding_box([bounds.left, bounds.bottom + 23], width: bounds.width, height: 25) do
+      text_box item[:extra],
+        size: 9, align: :center, valign: :center, width: bounds.width,
+        inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: false
+    end
+  end
+end
 
 def render_label(item, size: DYMO_LABEL_SIZE)
   pdf = Prawn::Document.new(page_size: size.map { |x| mm2pt(x) },
-                            margin: [2, 2, 2, 6].map { |x| mm2pt(x) }) do
+                            margin: [0, 0, 0, 0].map { |x| mm2pt(x) }) do
     font_families.update("DejaVuSans" => {
       normal: "fonts/DejaVuSans.ttf",
       italic: "fonts/DejaVuSans-Oblique.ttf",
       bold: "fonts/DejaVuSans-Bold.ttf",
       bold_italic: "fonts/DejaVuSans-BoldOblique.ttf"
     })
-
     font 'DejaVuSans'
 
-    # Width of right side
-    qr_size = [bounds.height / 2, 27].max
-
-    # Right side
-    bounding_box([bounds.right - qr_size, bounds.top], width: qr_size) do
-      print_qr_code item[:url], stroke: false,
-        foreground_color: '000000',
-        extent: bounds.width, margin: 0, pos: bounds.top_left
-
-      metadata_text = "Hello world"
-
-      text_box metadata_text,
-        at: [bounds.right - qr_size, -7], size: 8, align: :right, overflow: :shrink_to_fit
-    end
-
-    # Left side
-    bounding_box(bounds.top_left, width: bounds.width - qr_size) do
-      text_box item[:name],
-        size: 40, align: :center, valign: :center, width: bounds.width-10,
-        inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: true
-    end
+    draw_page item
+    start_new_page
+    draw_page item
   end
 
   pdf.render
 end
-
-# set :bind, '0.0.0.0'
 
 # get '/api/1/preview/:id.pdf' do
 #   headers["Content-Type"] = "application/pdf; charset=utf8"
@@ -114,9 +122,13 @@ end
 # end
 
 label = {
-  name: 'Hello',
+  name: 'Hello world blah blah blah blah',
   url: 'https://example.com/',
+  extra: 'Auchan hehe'
 }
 
-pdf = render_label(label)
-File.write('qr.pdf', pdf)
+pdf = render_label(label, size: A8_SAFE_SIZE)
+path = "#{Dir.home}/Downloads/QRs (#{DateTime.now().to_s}).pdf"
+p path
+File.write(path, pdf)
+system("open '#{path}'")
