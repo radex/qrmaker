@@ -1,12 +1,10 @@
 require 'rubygems'
-require 'sinatra'
 require 'rqrcode'
 require 'prawn'
 require 'prawn/measurements'
 require 'prawn/qrcode'
 require 'prawn-svg'
 require 'color'
-require 'excon'
 require 'rmagick'
 require 'json'
 require 'zlib'
@@ -27,22 +25,6 @@ include Prawn::Measurements
 #     end
 #   end
 # end
-
-module Excon
-  class Response
-    def json!()
-      # Convenience function
-      JSON.parse(body)
-    end
-  end
-end
-
-BACKEND_URL = 'https://inventory.waw.hackerspace.pl/api/1/'
-CODE_PREFIX = "HTTP://I/"
-
-def api(uri)
-  Excon.get(BACKEND_URL + uri + "/").json!
-end
 
 def render_identicode(data, id, extent)
   pts = [[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]
@@ -70,9 +52,7 @@ end
 DYMO_LABEL_SIZE = [89, 36]
 ZEBRA_LABEL_SIZE = [100, 60]
 
-def render_label(item_or_label_id, size: DYMO_LABEL_SIZE)
-  item = api("items/#{item_or_label_id}")
-
+def render_label(item, size: DYMO_LABEL_SIZE)
   pdf = Prawn::Document.new(page_size: size.map { |x| mm2pt(x) },
                             margin: [2, 2, 2, 6].map { |x| mm2pt(x) }) do
     font_families.update("DejaVuSans" => {
@@ -89,12 +69,11 @@ def render_label(item_or_label_id, size: DYMO_LABEL_SIZE)
 
     # Right side
     bounding_box([bounds.right - qr_size, bounds.top], width: qr_size) do
-      print_qr_code CODE_PREFIX + item['short_id'], stroke: false,
+      print_qr_code item['url'], stroke: false,
         foreground_color: '000000',
         extent: bounds.width, margin: 0, pos: bounds.top_left
 
-      owner_text = item["owner"] ? "owner: #{item['owner']}\n\n" : ""
-      metadata_text = owner_text # todo: creation date?
+      metadata_text = "Hello world"
 
       text_box metadata_text,
         at: [bounds.right - qr_size, -7], size: 8, align: :right, overflow: :shrink_to_fit
@@ -111,25 +90,35 @@ def render_label(item_or_label_id, size: DYMO_LABEL_SIZE)
   pdf.render
 end
 
-set :bind, '0.0.0.0'
+# set :bind, '0.0.0.0'
 
-get '/api/1/preview/:id.pdf' do
-  headers["Content-Type"] = "application/pdf; charset=utf8"
-  render_label params["id"]
-end
+# get '/api/1/preview/:id.pdf' do
+#   headers["Content-Type"] = "application/pdf; charset=utf8"
+#   render_label params["id"]
+# end
 
-get '/api/1/preview/:id.png' do
-  headers["Content-Type"] = "image/png"
-  img = Magick::ImageList.new()
-  img = img.from_blob(render_label(params["id"])){ self.density = 200 }.first
-  img.format = 'png'
-  img.background_color = 'white'
-  img.to_blob
-end
+# get '/api/1/preview/:id.png' do
+#   headers["Content-Type"] = "image/png"
+#   img = Magick::ImageList.new()
+#   img = img.from_blob(render_label(params["id"])){ self.density = 200 }.first
+#   img.format = 'png'
+#   img.background_color = 'white'
+#   img.to_blob
+# end
 
-post '/api/1/print/:id' do
-  temp = Tempfile.new('labelmaker')
-  temp.write(render_label(params["id"]))
-  temp.close
-  system("lpr -P DYMO_LabelWriter_450 #{temp.path}")
-end
+# post '/api/1/print/:id' do
+#   temp = Tempfile.new('labelmaker')
+#   temp.write(render_label(params["id"]))
+#   temp.close
+#   system("lpr -P DYMO_LabelWriter_450 #{temp.path}")
+# end
+
+label = {
+  name: 'Hello',
+  url: 'https://example.com/',
+}
+
+temp = Tempfile.new('labelmaker')
+temp.write(render_label(label))
+temp.close
+system("open #{temp.path}")
