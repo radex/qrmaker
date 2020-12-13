@@ -173,14 +173,26 @@ labels = [
   },
 ]
 
-def generate_pdf labels
-  pdf = create_pdf labels, label_size: A8_SAFE_SIZE, page_size: ZEBRA_4x6_SIZE, four_per_page: true
-  path = "#{Dir.home}/Downloads/QRs (#{DateTime.now().to_s}).pdf"
-  p path
-  File.write(path, pdf)
-  system("open '#{path}'")
-end
 
+def generate_pdf(labels, print)
+  pdf = create_pdf labels, label_size: A8_SAFE_SIZE, page_size: ZEBRA_4x6_SIZE, four_per_page: true
+
+  tmp_dir = File.expand_path('../../tmp', __FILE__)
+  # p tmp_dir
+  Dir.mkdir(tmp_dir) rescue
+  path = "#{tmp_dir}/QRs (#{DateTime.now().to_s}).pdf"
+  p path
+
+  File.write(path, pdf)
+
+  if print
+    system("lpr -P Zebra_4x6in_label_printer -o media=Custom.100x150mm '#{path}'")
+  rescue
+    system("open '#{path}'")
+  else
+    system("open '#{path}'")
+  end
+end
 
 def get_auchan_details url
   raw = RestClient.get(url)
@@ -207,8 +219,13 @@ end
 def get_details url
   return get_auchan_details url if url.include? 'auchandirect.pl'
   return { name: '?', url: url, extra: url }
-rescue
+rescue => error
+  p error
   return { name: '?', url: url, extra: url }
+end
+
+def label_text label
+  " Name:\t#{label[:name]}\n Extra:\t#{label[:extra]}\n URL:\t#{label[:url]}"
 end
 
 def cli
@@ -219,7 +236,12 @@ def cli
   labels = []
 
   loop do
-    answer = cli.ask "Enter product URL or: \nc - create url\np - print \ng - generate PDF \nd - delete last item".green
+    answer = cli.ask ("Enter product URL or: \n" +
+      "c - create url\n" +
+      "p - print \n" +
+      "g - generate PDF \n" +
+      "a - show all items \n" +
+      "d - delete last item").green
     label = nil
 
     case answer
@@ -228,17 +250,20 @@ def cli
     when 'c'
       cli.say "Sorry, unimplemented...".red
     when 'p'
-      cli.say "Sorry, unimplemented...".red
+      return generate_pdf labels, true
     when 'g'
-      cli.say "Sorry, unimplemented...".red
+      return generate_pdf labels, false
     when 'd'
-      cli.say "Sorry, unimplemented...".red
+      labels.pop
+    when 'a'
+      cli.say labels.map { |l| label_text l }.join("\n\n")
     else
       cli.say "Sorry, not sure what you meant there...".red
     end
 
     if label
-      cli.say "Added:\n Name:\t#{label[:name]}\n Extra:\t#{label[:extra]})\n URL:\t#{label[:url]}"
+      labels << label
+      cli.say "Added:\n#{label_text label}"
     end
     cli.say "\n"
   end
