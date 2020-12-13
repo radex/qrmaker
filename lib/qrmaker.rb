@@ -9,6 +9,7 @@ require 'rmagick'
 require 'json'
 require 'zlib'
 require 'date'
+require 'nokogiri'
 
 include Prawn::Measurements
 
@@ -84,9 +85,9 @@ def draw_page label
   end
 end
 
-def lay_out_4_labels_per_page labels
-  page_size = ZEBRA_4x6_SIZE.map { |x| mm2pt(x) }
-  label_size = A8_SAFE_SIZE.map { |x| mm2pt(x) }
+def lay_out_4_labels_per_page(labels, label_size:, page_size:)
+  page_size = page_size.map { |x| mm2pt(x) }
+  label_size = label_size.map { |x| mm2pt(x) }
   label_w = label_size[0]
   label_h = label_size[1]
   hmargin = (page_size[0] - 2*label_w) / 2
@@ -113,8 +114,8 @@ def lay_out_4_labels_per_page labels
   end
 end
 
-def create_pdf(labels, size:)
-  pdf = Prawn::Document.new(page_size: size.map { |x| mm2pt(x) },
+def create_pdf(labels, label_size:, page_size:, four_per_page:)
+  pdf = Prawn::Document.new(page_size: page_size.map { |x| mm2pt(x) },
                             margin: [0, 0, 0, 0].map { |x| mm2pt(x) }) do
     font_families.update("DejaVuSans" => {
       normal: "fonts/DejaVuSans.ttf",
@@ -124,22 +125,18 @@ def create_pdf(labels, size:)
     })
     font 'DejaVuSans'
 
-    # NOTE: This bit is appropriate for label printers that print 1/page
-    # labels.each_with_index do |label, i|
-    #   start_new_page unless i == 0
-    #   draw_page label
-    # end
-
-    lay_out_4_labels_per_page labels
+    if four_per_page
+      lay_out_4_labels_per_page labels, label_size: label_size, page_size: page_size
+    else
+      labels.each_with_index do |label, i|
+        start_new_page unless i == 0
+        draw_page label
+      end
+    end
   end
 
   pdf.render
 end
-
-# get '/api/1/preview/:id.pdf' do
-#   headers["Content-Type"] = "application/pdf; charset=utf8"
-#   create_pdf params["id"]
-# end
 
 # get '/api/1/preview/:id.png' do
 #   headers["Content-Type"] = "image/png"
@@ -175,8 +172,44 @@ labels = [
   },
 ]
 
-pdf = create_pdf(labels, size: ZEBRA_4x6_SIZE)
-path = "#{Dir.home}/Downloads/QRs (#{DateTime.now().to_s}).pdf"
-p path
-File.write(path, pdf)
-system("open '#{path}'")
+def generate_pdf labels
+  pdf = create_pdf labels, label_size: A8_SAFE_SIZE, page_size: ZEBRA_4x6_SIZE, four_per_page: true
+  path = "#{Dir.home}/Downloads/QRs (#{DateTime.now().to_s}).pdf"
+  p path
+  File.write(path, pdf)
+  system("open '#{path}'")
+end
+
+
+def get_auchan_details url
+  uri = URI(url)
+  uri.query = nil
+  html = Nokogiri::HTML.parse(Net::HTTP.get(uri))
+
+  label = html.css(".product-resume .label")[0].text rescue "?"
+  brand = html.css(".product-resume .brand")[0].text rescue "?"
+  weight_and_price_per_weight = html.css(".product-resume .packaging")[0].text.strip.gsub(/\s{3,}/, ' |') rescue "?"
+  price = html.css(".product-resume .price--promo, .product-resume .price--standard")[0]
+    .text.strip.gsub(/\s{3,}/, ' ').sub(/(\d+) (\d+) /, '\1,\2') rescue "?"
+  date = DateTime.now.strftime('%Y-%m-%d')
+
+  extra = "#{brand} | #{price} | #{weight_and_price_per_weight} | #{date}"
+
+  # require 'pry'
+  # binding.pry
+
+  return {
+    name: label,
+    url: url,
+    extra: extra,
+  }
+rescue
+  return {
+    name: '?',
+    url: url,
+    extra: url,
+  }
+end
+
+p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/kresto-sezam-luskany/p-92900406'
+p get_auchan_details 'https://www.auchandirect.pl/auchan-warszawa/pl/mlekovita-mleko-polskie-3-2-swieze/p-94300211?fromPromo=true'
