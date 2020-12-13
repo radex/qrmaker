@@ -52,36 +52,68 @@ end
 
 DYMO_LABEL_SIZE = [89, 36]
 ZEBRA_LABEL_SIZE = [100, 60]
-A8_SAFE_SIZE = [47, 67]
+ZEBRA_4x6_SIZE = [100, 152]
+A8_SAFE_SIZE = [44, 65]
 
-def draw_page item
+def draw_page label
+  return unless label
+  line_width(0.2)
   stroke_bounds
 
-  margin = mm2pt(2)
+  margin = mm2pt(1.5)
 
   bounding_box([bounds.left + margin, bounds.top - margin],
     height: bounds.height - 2*margin, width: bounds.width - 2*margin) do
     bounding_box(bounds.top_left, width: bounds.width, height: 28) do
-      text_box item[:name],
+      text_box label[:name],
         size: 15, align: :center, valign: :center, width: bounds.width,
         inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: false
     end
 
     bounding_box([bounds.left, bounds.top - 30], width: bounds.width) do
-      print_qr_code item[:url], stroke: false,
+      print_qr_code label[:url], stroke: false,
         foreground_color: '000000',
         extent: bounds.width, margin: 0, pos: bounds.top_left
     end
 
     bounding_box([bounds.left, bounds.bottom + 23], width: bounds.width, height: 25) do
-      text_box item[:extra],
+      text_box label[:extra],
         size: 9, align: :center, valign: :center, width: bounds.width,
         inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: false
     end
   end
 end
 
-def render_label(item, size: DYMO_LABEL_SIZE)
+def lay_out_4_labels_per_page labels
+  page_size = ZEBRA_4x6_SIZE.map { |x| mm2pt(x) }
+  label_size = A8_SAFE_SIZE.map { |x| mm2pt(x) }
+  label_w = label_size[0]
+  label_h = label_size[1]
+  hmargin = (page_size[0] - 2*label_w) / 2
+  vmargin = (page_size[1] - 2*label_h) / 2
+
+  labels.each_slice(4).with_index do |label_slice, i|
+    start_new_page unless i == 0
+
+    bounding_box([bounds.left + hmargin, bounds.top - vmargin], width: label_w, height: label_h) do
+      draw_page label_slice[0]
+    end
+
+    bounding_box([bounds.right - hmargin - label_w, bounds.top - vmargin], width: label_w, height: label_h) do
+      draw_page label_slice[1]
+    end
+
+    bounding_box([bounds.left + hmargin, bounds.top - label_h - vmargin], width: label_w, height: label_h) do
+      draw_page label_slice[2]
+    end
+
+    bounding_box([bounds.right - hmargin - label_w, bounds.top - label_h - vmargin], width: label_w, height: label_h) do
+      draw_page label_slice[3]
+    end
+  end
+end
+
+def create_pdf(labels, size:)
   pdf = Prawn::Document.new(page_size: size.map { |x| mm2pt(x) },
                             margin: [0, 0, 0, 0].map { |x| mm2pt(x) }) do
     font_families.update("DejaVuSans" => {
@@ -92,9 +124,13 @@ def render_label(item, size: DYMO_LABEL_SIZE)
     })
     font 'DejaVuSans'
 
-    draw_page item
-    start_new_page
-    draw_page item
+    # NOTE: This bit is appropriate for label printers that print 1/page
+    # labels.each_with_index do |label, i|
+    #   start_new_page unless i == 0
+    #   draw_page label
+    # end
+
+    lay_out_4_labels_per_page labels
   end
 
   pdf.render
@@ -102,13 +138,13 @@ end
 
 # get '/api/1/preview/:id.pdf' do
 #   headers["Content-Type"] = "application/pdf; charset=utf8"
-#   render_label params["id"]
+#   create_pdf params["id"]
 # end
 
 # get '/api/1/preview/:id.png' do
 #   headers["Content-Type"] = "image/png"
 #   img = Magick::ImageList.new()
-#   img = img.from_blob(render_label(params["id"])){ self.density = 200 }.first
+#   img = img.from_blob(create_pdf(params["id"])){ self.density = 200 }.first
 #   img.format = 'png'
 #   img.background_color = 'white'
 #   img.to_blob
@@ -116,18 +152,30 @@ end
 
 # post '/api/1/print/:id' do
 #   temp = Tempfile.new('labelmaker')
-#   temp.write(render_label(params["id"]))
+#   temp.write(create_pdf(params["id"]))
 #   temp.close
 #   system("lpr -P DYMO_LabelWriter_450 #{temp.path}")
 # end
 
-label = {
-  name: 'Hello world blah blah blah blah',
-  url: 'https://example.com/',
-  extra: 'Auchan hehe'
-}
+labels = [
+  {
+    name: 'Hello world blah blah blah blah',
+    url: 'https://example.com/',
+    extra: 'Auchan hehe'
+  },
+  {
+    name: 'asd;as daskd asldjkakld',
+    url: 'https://example.org/',
+    extra: 'Auchan hehe'
+  },
+  {
+    name: 'Hi',
+    url: 'https://example.biz/',
+    extra: 'Auchan hehe'
+  },
+]
 
-pdf = render_label(label, size: A8_SAFE_SIZE)
+pdf = create_pdf(labels, size: ZEBRA_4x6_SIZE)
 path = "#{Dir.home}/Downloads/QRs (#{DateTime.now().to_s}).pdf"
 p path
 File.write(path, pdf)
