@@ -69,7 +69,7 @@ def render_label(item, size: DYMO_LABEL_SIZE)
 
     # Right side
     bounding_box([bounds.right - qr_size, bounds.top], width: qr_size) do
-      print_qr_code item['url'], stroke: false,
+      print_qr_code item[:url], stroke: false,
         foreground_color: '000000',
         extent: bounds.width, margin: 0, pos: bounds.top_left
 
@@ -81,7 +81,7 @@ def render_label(item, size: DYMO_LABEL_SIZE)
 
     # Left side
     bounding_box(bounds.top_left, width: bounds.width - qr_size) do
-      text_box item['name'],
+      text_box item[:name],
         size: 40, align: :center, valign: :center, width: bounds.width-10,
         inline_format: true, overflow: :shrink_to_fit, disable_wrap_by_char: true
     end
@@ -118,7 +118,5 @@ label = {
   url: 'https://example.com/',
 }
 
-temp = Tempfile.new('labelmaker')
-temp.write(render_label(label))
-temp.close
-system("open #{temp.path}")
+pdf = render_label(label)
+File.write('qr.pdf', pdf)
