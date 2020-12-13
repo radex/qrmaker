@@ -11,6 +11,9 @@ require 'zlib'
 require 'date'
 require 'nokogiri'
 require 'rest-client'
+require 'highline'
+
+HighLine.colorize_strings
 
 include Prawn::Measurements
 
@@ -148,33 +151,8 @@ end
 #   img.to_blob
 # end
 
-# post '/api/1/print/:id' do
-#   temp = Tempfile.new('labelmaker')
-#   temp.write(create_pdf(params["id"]))
-#   temp.close
-#   system("lpr -P DYMO_LabelWriter_450 #{temp.path}")
-# end
-
-labels = [
-  {
-    name: 'Hello world blah blah blah blah',
-    url: 'https://example.com/',
-    extra: 'Auchan hehe'
-  },
-  {
-    name: 'asd;as daskd asldjkakld',
-    url: 'https://example.org/',
-    extra: 'Auchan hehe'
-  },
-  {
-    name: 'Hi',
-    url: 'https://example.biz/',
-    extra: 'Auchan hehe'
-  },
-]
-
-
 def generate_pdf(labels, print)
+  puts JSON.dump(labels)
   pdf = create_pdf labels, label_size: A8_SAFE_SIZE, page_size: ZEBRA_4x6_SIZE, four_per_page: true
 
   tmp_dir = File.expand_path('../../tmp', __FILE__)
@@ -237,13 +215,33 @@ def from_json label
 end
 
 def cli_create_label cli
+  answer = cli.ask ("m - manual: \n" +
+    "au - Auchan Direct search \n" +
+    "al - Allegro search").yellow
 
+  case answer
+  when 'm'
+    name = cli.ask "Name: "
+    url = cli.ask "URL: "
+    extra = cli.ask "Extra: "
+    return { name: name, url: url, extra: extra }
+  when 'au'
+    query = cli.ask "Search query: "
+    url = "https://www.auchandirect.pl/auchan-warszawa/pl/search?text=#{URI.escape(query)}"
+    extra = "(Auchan Direct)"
+    return { name: query, url: url, extra: extra }
+  when 'al'
+    query = cli.ask "Search query: "
+    url = "https://allegro.pl/listing?string=#{URI.escape(query)}&order=d&allegro-smart-standard=1"
+    extra = "(Allegro)"
+    return { name: query, url: url, extra: extra }
+  end
+
+  return nil
 end
 
 def cli
-  require 'highline'
   cli = HighLine.new
-  HighLine.colorize_strings
 
   labels = []
 
@@ -262,7 +260,8 @@ def cli
     when /^https?:/
       label = get_details answer
     when 'c'
-      cli.say "Sorry, unimplemented...".red
+      label = cli_create_label cli
+      cli.say "Sorry, not sure what you meant there...".red unless label
     when 'p'
       generate_pdf labels, true
     when 'g'
@@ -289,6 +288,9 @@ def cli
       cli.say "Added:\n#{label_text label}"
     end
     cli.say "\n"
+  rescue => error
+    p error
+    cli.say "Oops, something went wrong here...".red
   end
 end
 
