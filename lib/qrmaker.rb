@@ -200,7 +200,7 @@ end
 
 def get_details url
   return get_auchan_details url if url.include? 'auchandirect.pl'
-  return { name: '?', url: url, extra: url }
+  return { name: '', url: url, extra: url }
 rescue => error
   p error
   return { name: '?', url: url, extra: url }
@@ -253,6 +253,7 @@ def cli
       "j - dump json \n"+
       "l - load json \n"+
       "a - show all items \n" +
+      "x - add last item again" +
       "d - delete last item").green
     label = nil
 
@@ -277,6 +278,12 @@ def cli
       end
     when 'd'
       labels.pop
+    when 'x'
+      if labels.last
+        dups = cli.ask("How many '#{labels.last[:name]}' more to add? (press return = 1 more)", Integer) { |q| q.default = 1 }
+        dups.times { labels << labels.last }
+        cli.say "OK, added #{dups} more."
+      end
     when 'a'
       cli.say labels.map { |l| label_text l }.join("\n\n")
     else
