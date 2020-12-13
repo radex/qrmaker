@@ -186,12 +186,16 @@ def generate_pdf(labels, print)
   File.write(path, pdf)
 
   if print
-    system("lpr -P Zebra_4x6in_label_printer -o media=Custom.100x150mm '#{path}'")
-  rescue
-    system("open '#{path}'")
+    begin
+      system("lpr -P Zebra_4x6in_label_printer -o media=Custom.100x150mm '#{path}'")
+    rescue
+      system("open '#{path}'")
+    end
   else
     system("open '#{path}'")
   end
+rescue
+  p "Something went wrong here..."
 end
 
 def get_auchan_details url
@@ -228,6 +232,14 @@ def label_text label
   " Name:\t#{label[:name]}\n Extra:\t#{label[:extra]}\n URL:\t#{label[:url]}"
 end
 
+def from_json label
+  { name: label["name"], url: label["url"], extra: label["extra"] }
+end
+
+def cli_create_label cli
+
+end
+
 def cli
   require 'highline'
   cli = HighLine.new
@@ -237,9 +249,11 @@ def cli
 
   loop do
     answer = cli.ask ("Enter product URL or: \n" +
-      "c - create url\n" +
+      "c - create url (wizard)\n" +
       "p - print \n" +
       "g - generate PDF \n" +
+      "j - dump json \n"+
+      "l - load json \n"+
       "a - show all items \n" +
       "d - delete last item").green
     label = nil
@@ -250,9 +264,18 @@ def cli
     when 'c'
       cli.say "Sorry, unimplemented...".red
     when 'p'
-      return generate_pdf labels, true
+      generate_pdf labels, true
     when 'g'
-      return generate_pdf labels, false
+      generate_pdf labels, false
+    when 'j'
+      cli.say JSON.dump(labels)
+    when 'l'
+      json = cli.ask("Labels json:")
+      begin
+        labels.push(*JSON.parse(json).map { |l| from_json(l) })
+      rescue
+        cli.say "Oops, JSON load went wrong...".red
+      end
     when 'd'
       labels.pop
     when 'a'
