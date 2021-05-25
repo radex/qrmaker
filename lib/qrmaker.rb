@@ -165,7 +165,7 @@ def generate_pdf(labels, print)
 
   if print
     begin
-      system("lpr -P Zebra_4x6in_label_printer -o media=Custom.100x150mm '#{path}'")
+      system("lpr -P ZebraHS -o media=Custom.100x150mm '#{path}'")
     rescue
       system("open '#{path}'")
     end
